@@ -1,0 +1,71 @@
+name: Check Apple Updates
+
+on:
+  schedule:
+    - cron: '0 * * * *' # 每小时运行一次
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install feedparser requests
+
+      - name: Check RSS and Push
+        env:
+          BARK_KEY: ${{ secrets.BARK_KEY }}
+        run: |
+          python -c "
+          import feedparser
+          import requests
+          import os
+          
+          # Apple 官方开发者 RSS 源
+          rss_url = 'https://developer.apple.com/news/releases/rss/releases.rss'
+          feed = feedparser.parse(rss_url)
+          
+          if feed.entries:
+              latest_entry = feed.entries[0]
+              latest_title = latest_entry.title
+              latest_link = latest_entry.link
+              
+              # 读取上次保存的更新标题
+              try:
+                  with open('last_update.txt', 'r') as f:
+                      last_saved = f.read().strip()
+              except FileNotFoundError:
+                  last_saved = ''
+              
+              # 如果发现新标题，则推送
+              if latest_title != last_saved:
+                  print(f'New update found: {latest_title}')
+                  
+                  # 发送 Bark 推送
+                  bark_key = os.environ.get('BARK_KEY')
+                  title = 'Apple 更新提醒'
+                  body = latest_title
+                  # URL 编码处理略，简单请求通常可行，若标题含特殊字符建议引用 urllib.parse.quote
+                  requests.get(f'https://api.day.app/{bark_key}/{title}/{body}?url={latest_link}')
+                  
+                  # 更新记录文件
+                  with open('last_update.txt', 'w') as f:
+                      f.write(latest_title)
+              else:
+                  print('No new updates.')
+          "
+
+      - name: Commit and push if changed
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add last_update.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last seen release" && git push)
