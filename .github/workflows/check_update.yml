@@ -2,12 +2,14 @@ name: Check Apple Updates
 
 on:
   schedule:
-    - cron: '0 * * * *' # 每小时运行一次
+    - cron: '0 * * * *' # 每小时运行
   workflow_dispatch: # 允许手动触发
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 务必保留：赋予写权限，否则无法保存进度
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -28,44 +30,71 @@ jobs:
           import feedparser
           import requests
           import os
-          
-          # Apple 官方开发者 RSS 源
+
+          # Apple 官方 RSS 源
           rss_url = 'https://developer.apple.com/news/releases/rss/releases.rss'
           feed = feedparser.parse(rss_url)
           
-          if feed.entries:
-              latest_entry = feed.entries[0]
-              latest_title = latest_entry.title
-              latest_link = latest_entry.link
-              
-              # 读取上次保存的更新标题
-              try:
-                  with open('last_update.txt', 'r') as f:
-                      last_saved = f.read().strip()
-              except FileNotFoundError:
-                  last_saved = ''
-              
-              # 如果发现新标题，则推送
-              if latest_title != last_saved:
-                  print(f'New update found: {latest_title}')
-                  
-                  # 发送 Bark 推送
-                  bark_key = os.environ.get('BARK_KEY')
-                  title = 'Apple 更新提醒'
-                  body = latest_title
-                  # URL 编码处理略，简单请求通常可行，若标题含特殊字符建议引用 urllib.parse.quote
-                  requests.get(f'https://api.day.app/{bark_key}/{title}/{body}?url={latest_link}')
-                  
-                  # 更新记录文件
-                  with open('last_update.txt', 'w') as f:
-                      f.write(latest_title)
+          # 存档文件，保存的是上一次最新的那个更新的 ID (唯一标识)
+          cache_file = 'last_update_id.txt'
+          
+          # 1. 读取本地存档
+          try:
+              with open(cache_file, 'r') as f:
+                  last_seen_id = f.read().strip()
+          except FileNotFoundError:
+              last_seen_id = ''
+
+          # 2. 找出所有“比存档更新”的内容
+          new_items = []
+          
+          # 遍历 RSS 列表（防止因为一次发太多导致漏单，这里检查前 15 条）
+          for entry in feed.entries[:15]:
+              if entry.id == last_seen_id:
+                  # 遇到上次见过的 ID 了，说明后面的都是旧闻，停止扫描
+                  break
               else:
-                  print('No new updates.')
+                  # 这个 ID 没见过，加入待推送列表
+                  new_items.append(entry)
+
+          # 3. 处理推送逻辑
+          if new_items:
+              print(f'Found {len(new_items)} new updates.')
+              
+              # 注意：RSS 是倒序的（最新的在最前），为了符合阅读习惯，我们反转一下，从旧往新推
+              # 或者保持原样（最新的先到），这里直接按列表推
+              
+              bark_key = os.environ.get('BARK_KEY')
+              
+              # 防止第一次运行时（没有存档）把整个 RSS 列表全推给你，做个保护
+              # 如果新内容超过 10 条，并且本地没有存档，说明是初次运行，只推最新的1条
+              if len(new_items) > 10 and not last_seen_id:
+                  new_items = [feed.entries[0]]
+
+              for item in new_items:
+                  print(f'Pushing: {item.title}')
+                  # 发送 Bark 请求
+                  try:
+                      # 简单的 URL 编码处理
+                      title = 'Apple软件更新'
+                      body = item.title
+                      url = item.link
+                      # 加上 group=AppleUpdate 方便通知折叠
+                      requests.get(f'https://api.day.app/{bark_key}/{title}/{body}?url={url}&group=AppleUpdate')
+                  except Exception as e:
+                      print(f'Failed to push {item.title}: {e}')
+
+              # 4. 保存最新的那个 ID (也就是列表的第0个)
+              with open(cache_file, 'w') as f:
+                  f.write(feed.entries[0].id)
+          else:
+              print('No new updates found.')
           "
 
-      - name: Commit and push if changed
+      - name: Commit changes
         run: |
           git config --local user.email "imdp6@icloud.com"
           git config --local user.name "GitHub Action"
-          git add last_update.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last seen release" && git push)
+          # 注意：这里文件名改成了 last_update_id.txt
+          git add last_update_id.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update last seen ID" && git push)
