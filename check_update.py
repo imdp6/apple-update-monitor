@@ -1,10 +1,10 @@
 import feedparser
 import requests
 import os
-from urllib.parse import quote
 
-RSS_URL = "https://developer.apple.com/news/releases/rss/releases.rss"
-CACHE_FILE = "last_update_id.txt"
+# Apple Developer Releases RSS URL
+RSS_URL = 'https://developer.apple.com/news/releases/rss/releases.rss'
+CACHE_FILE = 'last_update_id.txt'
 
 def load_last_id():
     try:
@@ -19,21 +19,18 @@ def save_last_id(eid):
 
 def main():
     feed = feedparser.parse(RSS_URL)
-    entries = feed.entries[:15]
 
+    # 获取本次运行之前的最后更新 ID
     last_id = load_last_id()
-    new_items = []
 
-    for item in entries:
-        eid = item.get("id") or item.get("link")  # fallback
+    new_items = []
+    for item in feed.entries:
+        eid = item.get("id") or item.get("link")  # 使用 link 作为备用 ID
         if eid == last_id:
             break
         new_items.append(item)
 
-    # 初次运行保护：只推最新的一个
-    if not last_id and new_items:
-        new_items = [entries[0]]
-
+    # 如果没有新条目
     if not new_items:
         print("No new updates.")
         return
@@ -43,19 +40,19 @@ def main():
     bark_key = os.getenv("BARK_KEY")
     push_base = f"https://api.day.app/{bark_key}"
 
-    for item in new_items[::-1]:
-        title = quote("Apple软件更新")
-        body = quote(item.title)
-        link = quote(item.link, safe="")
+    # 逐条推送更新内容
+    for item in new_items[::-1]:  # 从旧到新推送
+        title = item.title
+        body = item.title
+        link = item.link
         url = f"{push_base}/{title}/{body}?url={link}&group=AppleUpdate"
 
         r = requests.get(url)
         print(f"Pushed: {item.title}, status={r.status_code}")
 
-    # 保存最新 ID
-    newest_id = entries[0].get("id") or entries[0].get("link")
+    # 更新本次最新的条目 ID
+    newest_id = feed.entries[0].get("id") or feed.entries[0].get("link")
     save_last_id(newest_id)
 
 if __name__ == "__main__":
     main()
-

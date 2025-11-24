@@ -2,13 +2,8 @@ name: Check Apple Updates
 
 on:
   schedule:
-    - cron: '0 * * * *'  # 每小时运行
-  workflow_dispatch:      # 允许手动触发
-
-# 防止并发运行导致 git push 冲突
-concurrency:
-  group: apple-update
-  cancel-in-progress: true
+    - cron: '0 17 * * *'  # 每天 UTC 17:00 执行（即 Apple 的 9:00 AM PST）
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   check:
