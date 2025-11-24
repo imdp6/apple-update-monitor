@@ -1,6 +1,7 @@
 import feedparser
 import requests
 import os
+import time
 
 # Apple Developer Releases RSS URL
 RSS_URL = 'https://developer.apple.com/news/releases/rss/releases.rss'
@@ -17,8 +18,29 @@ def save_last_id(eid):
     with open(CACHE_FILE, "w") as f:
         f.write(eid)
 
+def fetch_rss_with_retry(url, retries=6, delay=10):
+    """
+    尝试获取 RSS 数据，最多重试 `retries` 次，失败时每次延迟 `delay` 秒
+    """
+    for attempt in range(retries):
+        try:
+            feed = feedparser.parse(url)
+            if feed.entries:
+                return feed
+            print(f"Attempt {attempt + 1} failed, no entries found, retrying...")
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed with error: {e}, retrying...")
+        
+        # 如果没有成功，等待一段时间后重试
+        time.sleep(delay)
+    return None
+
 def main():
-    feed = feedparser.parse(RSS_URL)
+    # 尝试获取 RSS 数据
+    feed = fetch_rss_with_retry(RSS_URL, retries=6)  # 设置重试次数为 6 次
+    if not feed:
+        print("Failed to fetch RSS data after multiple attempts.")
+        return
 
     # 获取本次运行之前的最后更新 ID
     last_id = load_last_id()
