@@ -1,9 +1,9 @@
 name: Check Apple Updates
 
 on:
-  schedule:
-    - cron: '0 17 * * *'  # 每天 UTC 17:00 执行（即 Apple 的 9:00 AM PST）
-  workflow_dispatch:  # 允许手动触发
+  push:
+    branches:
+      - main  # 每次推送到 main 分支时触发
 
 jobs:
   check:
@@ -30,7 +30,7 @@ jobs:
 
       - name: Commit last update ID
         run: |
-          git config user.email "imdp6@icloud.com"
+          git config user.email "action@github.com"
           git config user.name "GitHub Action"
 
           git add last_update_id.txt
