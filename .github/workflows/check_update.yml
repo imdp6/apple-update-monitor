@@ -3,13 +3,17 @@ name: Check Apple Updates
 on:
   push:
     branches:
-      - main  # 每次推送到 main 分支时触发
+      - main
+  schedule:
+    - cron: '*/5 * * * *' # 每 5 分钟检查一次 (GitHub Actions 允许的最快频率)
+  workflow_dispatch:
+    # 允许手动触发
 
 jobs:
   check:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 允许写入 last_update_id.txt
+      contents: write # 允许写入 last_update_id.txt
 
     steps:
       - name: Checkout code
