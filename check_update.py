@@ -45,11 +45,29 @@ def main():
     # 获取本次运行之前的最后更新 ID
     last_id = load_last_id()
 
+    # 获取最新条目的发布时间作为基准日期
+    if not feed.entries:
+        return
+        
+    latest_entry = feed.entries[0]
+    if not hasattr(latest_entry, 'published_parsed'):
+        print("Error: Unable to parse published date.")
+        return
+        
+    latest_date = latest_entry.published_parsed[:3] # (year, month, day)
+
     new_items = []
     for item in feed.entries:
-        eid = item.get("id") or item.get("link")  # 使用 link 作为备用 ID
+        eid = item.get("id") or item.get("link")
         if eid == last_id:
             break
+            
+        # 检查日期是否与最新条目一致
+        if hasattr(item, 'published_parsed'):
+            item_date = item.published_parsed[:3]
+            if item_date != latest_date:
+                continue
+                
         new_items.append(item)
 
     # 如果没有新条目
