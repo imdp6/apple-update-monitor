@@ -78,6 +78,10 @@ def main():
     print(f"Found {len(new_items)} new updates.")
 
     bark_key = os.getenv("BARK_KEY")
+    if not bark_key:
+        print("Error: BARK_KEY is not set in environment variables.")
+        return
+
     push_base = f"https://api.day.app/{bark_key}"
 
     # 逐条推送更新内容
@@ -91,8 +95,11 @@ def main():
         link = item.link
         url = f"{push_base}/{title}/{body}?url={link}&group=AppleUpdate"
 
-        r = requests.get(url)
-        print(f"Pushed: {item.title}, status={r.status_code}")
+        try:
+            r = requests.get(url, timeout=10) # 设置 10 秒超时
+            print(f"Pushed: {body}, status={r.status_code}")
+        except Exception as e:
+            print(f"Failed to push {title}: {e}")
 
     # 更新本次最新的条目 ID
     newest_id = feed.entries[0].get("id") or feed.entries[0].get("link")
