@@ -40,5 +40,8 @@ jobs:
           git add last_update_id.txt
 
           # 如果没有变更，不提交
-          git diff --staged --quiet || git commit -m "Update last seen ID"
-          git push
+          if ! git diff --staged --quiet; then
+            git commit -m "Update last seen ID"
+            git pull --rebase
+            git push
+          fi
