@@ -83,7 +83,11 @@ def main():
     # 逐条推送更新内容
     for item in new_items[::-1]:  # 从旧到新推送
         title = item.title
-        body = item.title
+        # 将发布时间添加到通知内容中
+        date_str = "Unknown Date"
+        if hasattr(item, 'published'):
+             date_str = item.published
+        body = f"{item.title} ({date_str})"
         link = item.link
         url = f"{push_base}/{title}/{body}?url={link}&group=AppleUpdate"
 
