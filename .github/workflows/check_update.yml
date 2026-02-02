@@ -5,13 +5,13 @@ on:
     branches:
       - main
   schedule:
-    - cron: '*/5 * * * *' # 每 5 分钟检查一次
+    - cron: '0 * * * *' # 每小时整点检查一次
   workflow_dispatch:
     # 允许手动触发
 
 concurrency:
   group: apple-check
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check:
