@@ -5,7 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 * * * *' # 每小时整点检查一次
+    - cron: '*/15 * * * *' # 每 15 分钟检查一次
   workflow_dispatch:
     # 允许手动触发
 
