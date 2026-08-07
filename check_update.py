@@ -24,7 +24,9 @@ def fetch_rss_with_retry(url, retries=6, delay=10):
     """
     for attempt in range(retries):
         try:
-            feed = feedparser.parse(url)
+            response = requests.get(url, timeout=(10, 30))
+            response.raise_for_status()
+            feed = feedparser.parse(response.content)
             if feed.entries:
                 return feed
             print(f"Attempt {attempt + 1} failed, no entries found, retrying...")

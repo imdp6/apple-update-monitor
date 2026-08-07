@@ -5,7 +5,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '*/15 * * * *' # 每 15 分钟检查一次
+    - cron: '0 * * * *' # 每小时整点检查一次（UTC）
   workflow_dispatch:
     # 允许手动触发
 
@@ -16,6 +16,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write # 允许写入 last_update_id.txt
 
