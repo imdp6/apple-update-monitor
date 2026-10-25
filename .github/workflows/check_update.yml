@@ -1,6 +1,7 @@
 name: Check Apple Updates
 
 on:
+  pull_request:
   push:
     branches:
       - main
@@ -14,9 +15,24 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.9'
+      - run: pip install feedparser requests
+      - run: python -m unittest discover -v
+
+  check:
+    if: github.event_name != 'pull_request'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write # 允许写入 last_update_id.txt
 

@@ -2,6 +2,8 @@ import feedparser
 import requests
 import os
 import time
+import sys
+from urllib.parse import quote
 
 # Apple Developer Releases RSS URL
 RSS_URL = 'https://developer.apple.com/news/releases/rss/releases.rss'
@@ -34,15 +36,32 @@ def fetch_rss_with_retry(url, retries=6, delay=10):
             print(f"Attempt {attempt + 1} failed with error: {e}, retrying...")
         
         # 如果没有成功，等待一段时间后重试
-        time.sleep(delay)
+        if attempt + 1 < retries:
+            time.sleep(delay)
     return None
+
+def push_update(bark_key, item):
+    title = item.title
+    body = f"{title} ({item.get('published', 'Unknown Date')})"
+    url = f"https://api.day.app/{quote(bark_key, safe='')}/{quote(title, safe='')}/{quote(body, safe='')}"
+    try:
+        response = requests.get(
+            url, params={"url": item.link, "group": "AppleUpdate"}, timeout=10
+        )
+        response.raise_for_status()
+        result = response.json()
+        if not isinstance(result, dict) or result.get("code") != 200:
+            raise ValueError("Bark rejected notification")
+    except (requests.RequestException, ValueError) as exc:
+        # Request exceptions may include the URL containing the secret key.
+        raise RuntimeError(f"Failed to push {title}: {type(exc).__name__}") from None
+    print(f"Pushed: {body}, status={response.status_code}")
 
 def main():
     # 尝试获取 RSS 数据
     feed = fetch_rss_with_retry(RSS_URL, retries=6)  # 设置重试次数为 6 次
     if not feed:
-        print("Failed to fetch RSS data after multiple attempts.")
-        return
+        raise RuntimeError("Failed to fetch RSS data after multiple attempts.")
 
     # 获取本次运行之前的最后更新 ID
     last_id = load_last_id()
@@ -53,8 +72,7 @@ def main():
         
     latest_entry = feed.entries[0]
     if not hasattr(latest_entry, 'published_parsed'):
-        print("Error: Unable to parse published date.")
-        return
+        raise RuntimeError("Unable to parse published date.")
         
     latest_date = latest_entry.published_parsed[:3] # (year, month, day)
 
@@ -81,31 +99,19 @@ def main():
 
     bark_key = os.getenv("BARK_KEY")
     if not bark_key:
-        print("Error: BARK_KEY is not set in environment variables.")
-        return
-
-    push_base = f"https://api.day.app/{bark_key}"
+        raise RuntimeError("BARK_KEY is not set in environment variables.")
 
     # 逐条推送更新内容
     for item in new_items[::-1]:  # 从旧到新推送
-        title = item.title
-        # 将发布时间添加到通知内容中
-        date_str = "Unknown Date"
-        if hasattr(item, 'published'):
-             date_str = item.published
-        body = f"{item.title} ({date_str})"
-        link = item.link
-        url = f"{push_base}/{title}/{body}?url={link}&group=AppleUpdate"
-
-        try:
-            r = requests.get(url, timeout=10) # 设置 10 秒超时
-            print(f"Pushed: {body}, status={r.status_code}")
-        except Exception as e:
-            print(f"Failed to push {title}: {e}")
+        push_update(bark_key, item)
 
     # 更新本次最新的条目 ID
     newest_id = feed.entries[0].get("id") or feed.entries[0].get("link")
     save_last_id(newest_id)
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except RuntimeError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
